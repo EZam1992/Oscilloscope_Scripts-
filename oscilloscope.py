@@ -63,7 +63,7 @@ def rigol_screenshot(fname, connection):
     # add a timestamp 
     date_stamp_height_px = 23
     date_stamp_string = datetime.now().strftime("%A, %d %b %Y %H:%M:%S")
-    date_stamp_font = ImageFont.truetype("fonts/FreeMono.ttf", date_stamp_height_px)
+    date_stamp_font = ImageFont.truetype("arial.ttf", date_stamp_height_px)
     img = Image.open(fname)
     img = ImageOps.expand(img,border=date_stamp_height_px,fill=0)
     img = img.crop((date_stamp_height_px,
