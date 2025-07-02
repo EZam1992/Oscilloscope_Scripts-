@@ -2,6 +2,8 @@ import pyvisa
 import sys 
 from datetime import datetime 
 from PIL import Image, ImageFont, ImageDraw, ImageOps
+import csv
+import numpy as np
 
 class Oscilloscope(): 
     def __init__(self): 
@@ -72,6 +74,7 @@ class Oscilloscope():
         self.connection.write(":TRIGger:EDGe:SOURce CHANnel1")
         self.connection.write(":TRIGger:EDGe:SLOpe POSitive")
         self.connection.write(":TRIGger:EDGe:LEVel 2.5")
+        self.connection.write(":TIM:POS 0")
 
         for channel in channel_list:
             self.connection.write(f":CHANnel{channel}:DISPlay 1") 
@@ -84,7 +87,68 @@ class Oscilloscope():
 
 
     def save_csv(self):
-        pass
+        self.connection.write(":STOP")
+        self.connection.write(":WAVeform:SOURce CHANnel1")
+        self.connection.write(":WAVeform:MODE RAW")
+        self.connection.write(":WAVeform:FORMat BYTE")
+        self.connection.write(":WAVeform:DATA?")
+        self.data = self.connection.read_raw()
+
+        # we 
+        self.preamble = self.connection.query(":WAVeform:PREamble?").split(',')
+        x_incr = float(self.preamble[4]) #time between points
+        x_origin = float(self.preamble[5]) #time at index 0 
+        y_mult = float(self.preamble[7])
+        y_off = float(self.preamble[8])
+        y_zero = float(self.preamble[9])
+        # print(float(self.preamble[0]))
+        # print(float(self.preamble[1]))
+        # print(float(self.preamble[2]))
+        # print(x_incr)
+        print(x_origin)
+        print(float(self.preamble[6]))
+        print(y_mult)
+        print(y_off)
+        print(y_zero)
+
+        if self.data[0:1] == b'#':
+            header_len = int(self.data[1:2])
+            num_bytes = int(self.data[2:2+ header_len])
+            data_start = 2 + header_len
+            bin_data = self.data[data_start:data_start + num_bytes]
+        else:
+            raise ValueError("Unexpected binary data format")
+
+        # Convert binary bytes to unsigned integers (0–255)
+        byte_values = np.frombuffer(bin_data, dtype=np.uint8)
+        print(byte_values)
+
+        # Convert to voltage using the formula from Rigol manual
+        voltages = ((byte_values - y_zero) * y_mult) + y_off
+        print(voltages)
+
+        # Generate corresponding time values
+        times = np.arange(len(voltages)) * x_incr + x_origin      
+
+
+
+        #     # Parse SCPI header; this is needed bacause the ASCII data 
+        #     # returned by the oscilloscope includes a header when the data is queried: #9<length><data> 
+        # if self.data.startswith('#'):
+        #     self.header_len = int(self.data[1])
+        #     self.num_digits = int(self.data[2:2+ self.header_len])
+        #     self.data_start = 2 + self.header_len
+        #     self.data = self.data[self.data_start:self.data_start + self.num_digits]
+        # else:
+        #      raise ValueError("Invalid data format from scope.")
+
+        #self.data_values = [float(val) for val in self.data.strip().split(',') if val.strip()]
+
+        with open('try.csv', 'w', newline='') as csvfile: 
+            writer = csv.writer(csvfile)
+            writer.writerow(['Time (s)', "Voltage (V)"])
+            writer.writerows(zip(times, voltages))
+
 
     # def trigger_query(self):
     #     self.connection.write(":TRIGger:MODE EDGE") 
