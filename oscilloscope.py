@@ -20,15 +20,17 @@ class Oscilloscope():
             except: 
                 raise IOError("Unable to find an acceptable scope.")
             
-    def screenshot(self, args):
+    def screenshot(self, folder_path):
          
-        try: 
-            self.fname_stem = str(sys.argv[1])
-        except IndexError: 
-            self.fname_stem = input("Please enter a file name: ")
+        # try: 
+        #     self.fname_stem = str(sys.argv[1])
+        # except IndexError: 
+        #     self.fname_stem = input("Please enter a file name: ")
+        self.fname_stem = "TEST"
 
         self.date_string = datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S_")
         self.fname = self.date_string + self.fname_stem + f".png" 
+        self.full_path = os.path.join(folder_path, self.fname)
         self.date_stamp_height_px = 23
         self.date_stamp_string = datetime.now().strftime("%A, %d %b %Y %H:%M:%S")
         self.date_stamp_font = ImageFont.truetype("arial.ttf", self.date_stamp_height_px)
@@ -42,12 +44,12 @@ class Oscilloscope():
 
         
         print("Reading image data", flush=True)
-        print(f"Saving image to {self.fname}", flush=True)
-        with open(self.fname, "wb") as self.fout: 
+        #print(f"Saving image to {self.full_path}", flush=True)
+        with open(self.full_path, "wb") as self.fout: 
             self.fout.write(self.image_data)
 
 
-        self.img = Image.open(self.fname)
+        self.img = Image.open(self.full_path)
         self.img = ImageOps.expand(self.img,border=self.date_stamp_height_px,fill=0)
         self.img = self.img.crop((self.date_stamp_height_px,
                     0,
@@ -58,7 +60,7 @@ class Oscilloscope():
                         self.date_stamp_string,
                         (248, 252, 248),
                         self.date_stamp_font)
-        self.img.save(self.fname)
+        self.img.save(self.full_path)
 
         
 
@@ -93,6 +95,7 @@ class Oscilloscope():
         self.connection.write(f":WAVeform:SOURce CHANnel{channel}")
         self.connection.write(":WAVeform:MODE NORMal")
         self.connection.write(":WAVeform:FORMat ASCii")
+        self.connection.write(":TIM:REF LEFT")
 
     
     def read_ascii(self):
@@ -148,8 +151,10 @@ class Oscilloscope():
                         writer = csv.writer(f)
                         writer.writerow(["Time (s)", "Voltage (V)"])
                         writer.writerows(zip(self.times, self.voltages))
+                    
 
                         print(f"✅ Waveform saved to: {f'channel{channel}.csv'}")
+                self.screenshot(folder_path)
                     
                 self.set_trigger(volts_div, time_div, channel_list)
 
