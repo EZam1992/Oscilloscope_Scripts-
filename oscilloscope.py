@@ -59,26 +59,29 @@ class Oscilloscope():
 
         
 
-    def set_time_div(self): 
-        pass 
+    def set_time_div(self, time_div): 
+        self.connection.write(f"TIMebase:MAIN:SCALe {time_div}") 
 
-    def set_voltage_div(self): 
-        pass 
+    def set_voltage_div(self, channel, volts_div): 
+        self.connection.write(f":CHANnel{channel}:SCALe {volts_div}")
 
     def set_trigger(self, volts_div, time_div, channel_list):
-        self.connection.write(f"TIMebase:MAIN:SCALe {time_div}")
+        self.set_time_div(time_div)
+        self.connection.write(":TRIGger:MODE EDGE")
+        self.connection.write(":TRIGger:SWEep SINGle")
+        self.connection.write(":TRIGger:EDGe:SOURce CHANnel1")
+        self.connection.write(":TRIGger:EDGe:SLOpe POSitive")
+        self.connection.write(":TRIGger:EDGe:LEVel 2.5")
 
         for channel in channel_list:
             self.connection.write(f":CHANnel{channel}:DISPlay 1") 
             self.connection.write(f":CHANnel{channel}:OFFSet 0")
             self.connection.write(f":CHANnel{channel}:PROBe 1")
-            self.connection.write(f":CHANnel{channel}:SCALe {volts_div}")
+            self.set_voltage_div(channel, volts_div)
+             
 
+        
 
-        #user needs to pass the desired second per div and voiltage per div 
-        # call set seconds per div 
-        # call set voltage per div  
-        pass 
 
     def save_csv(self):
         pass
