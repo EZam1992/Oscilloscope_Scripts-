@@ -3,6 +3,7 @@ import sys
 from datetime import datetime 
 from PIL import Image, ImageFont, ImageDraw, ImageOps
 import csv
+import os
 import numpy as np
 
 class Oscilloscope(): 
@@ -69,6 +70,7 @@ class Oscilloscope():
 
     def set_trigger(self, volts_div, time_div, channel_list):
         self.connection.write(":RUN")
+        self.trigger_ON = True
         self.set_time_div(time_div)
         self.connection.write(":TRIGger:MODE EDGE")
         self.connection.write(":TRIGger:SWEep SINGle")
@@ -82,7 +84,9 @@ class Oscilloscope():
             self.connection.write(f":CHANnel{channel}:OFFSet 0")
             self.connection.write(f":CHANnel{channel}:PROBe 1")
             self.set_voltage_div(channel, volts_div)
-             
+        
+        status = self.connection.query(":TRIGger:STATus?")
+        print(f'Triger is set to: {status}')
 
     def configure_channel(self,channel): 
         self.connection.write(":STOP")
@@ -112,27 +116,42 @@ class Oscilloscope():
 
 
 
-    def save_csv(self, channel_list):
+    def save_csv(self, volts_div, time_div, channel_list):
+    
+        
 
-        for channel in channel_list:
-            self.configure_channel(channel)
-            self.read_ascii()
+        while self.trigger_ON:
+            flag = self.connection.query(":TRIGger:STATus?")
+            if "STOP" in flag: 
+                self.trigger_ON = False
+                print("Trigger Stoped: ", self.trigger_ON)
 
-            # Split and convert voltage values
-            self.ascii_data = self.data.decode()
-            self.voltages = np.array([float(v) for v in self.ascii_data.strip().split(',') if v.strip()])
+                #Create a new folder using current timestamp
+                folder_name = datetime.now().strftime("capture_%Y-%m-%d_%H-%M-%S")
+                folder_path = os.path.join("captures", folder_name)
+                os.makedirs(folder_path, exist_ok=True)
 
-            # Generate time values
-            self.times = np.arange(len(self.voltages)) * self.x_incr + self.x_origin
+                for channel in channel_list:
+                    self.configure_channel(channel)
+                    self.read_ascii()
+
+                    # Split and convert voltage values
+                    self.ascii_data = self.data.decode()
+                    self.voltages = np.array([float(v) for v in self.ascii_data.strip().split(',') if v.strip()])
+
+                    # Generate time values
+                    self.times = np.arange(len(self.voltages)) * self.x_incr + self.x_origin
 
 
+                    csv_filename = os.path.join(folder_path, f"channel{channel}.csv")   
+                    with open(csv_filename, mode='w', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow(["Time (s)", "Voltage (V)"])
+                        writer.writerows(zip(self.times, self.voltages))
 
-            with open(f'channel{channel}.csv', mode='w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["Time (s)", "Voltage (V)"])
-                writer.writerows(zip(self.times, self.voltages))
-
-                print(f"✅ Waveform saved to: {f'channel{channel}.csv'}")
+                        print(f"✅ Waveform saved to: {f'channel{channel}.csv'}")
+                    
+                self.set_trigger(volts_div, time_div, channel_list)
 
 
 
