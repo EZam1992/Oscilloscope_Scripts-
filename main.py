@@ -6,7 +6,7 @@ def main(args):
     time_div = 0.5 # seconds
     channel_list = [1, 2, 3, 4]
 
-    scope = Oscilloscope()
+    scope = Oscilloscope(time_div)
     scope.set_trigger(volts_div, time_div, channel_list)
     scope.save_csv(volts_div, time_div, channel_list)
 

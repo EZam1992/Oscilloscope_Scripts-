@@ -7,18 +7,21 @@ import os
 import numpy as np
 
 class Oscilloscope(): 
-    def __init__(self): 
+    def __init__(self, time_div): 
         self.rm = pyvisa.ResourceManager() 
         for connected_device in self.rm.list_resources(): 
             try: 
                 self.connection = self.rm.open_resource(connected_device)
-                self.connection.timeout = 3000
+                self.connection.timeout = 20000
+                self.counter = 0 
                 self.response = self.connection.query("*IDN?").lower() 
                 if "rigol" in self.response: 
                     self.type = "Rigol"
                     print(f"{self.type} Oscilloscope Connected")
             except: 
                 raise IOError("Unable to find an acceptable scope.")
+            
+            self.set_time_div(time_div)
             
     def screenshot(self, folder_path):
          
@@ -41,10 +44,6 @@ class Oscilloscope():
         except: 
             raise IOError("Unable to connect to scope")
         
-
-        
-        print("Reading image data", flush=True)
-        #print(f"Saving image to {self.full_path}", flush=True)
         with open(self.full_path, "wb") as self.fout: 
             self.fout.write(self.image_data)
 
@@ -73,22 +72,20 @@ class Oscilloscope():
     def set_trigger(self, volts_div, time_div, channel_list):
         self.connection.write(":RUN")
         self.trigger_ON = True
-        self.set_time_div(time_div)
         self.connection.write(":TRIGger:MODE EDGE")
         self.connection.write(":TRIGger:SWEep SINGle")
-        self.connection.write(":TRIGger:EDGe:SOURce CHANnel1")
+        self.connection.write(":TRIGger:EDGe:SOURce CHANnel4")
         self.connection.write(":TRIGger:EDGe:SLOpe POSitive")
         self.connection.write(":TRIGger:EDGe:LEVel 2.5")
-        self.connection.write(":TIM:POS 0")
 
         for channel in channel_list:
-            self.connection.write(f":CHANnel{channel}:DISPlay 1") 
-            self.connection.write(f":CHANnel{channel}:OFFSet 0")
-            self.connection.write(f":CHANnel{channel}:PROBe 1")
-            self.set_voltage_div(channel, volts_div)
-        
-        status = self.connection.query(":TRIGger:STATus?")
-        print(f'Triger is set to: {status}')
+            self.counter += 1
+            if self.counter <= 4:
+                self.connection.write(f":CHANnel{channel}:DISPlay 1") 
+                self.connection.write(f":CHANnel{channel}:OFFSet 0")
+                self.connection.write(f":CHANnel{channel}:PROBe 1")
+            
+                self.set_voltage_div(channel, volts_div)
 
     def configure_channel(self,channel): 
         self.connection.write(":STOP")
@@ -116,9 +113,6 @@ class Oscilloscope():
              raise ValueError("Invalid data format from scope.")
         
 
-
-
-
     def save_csv(self, volts_div, time_div, channel_list):
     
         
@@ -127,7 +121,6 @@ class Oscilloscope():
             flag = self.connection.query(":TRIGger:STATus?")
             if "STOP" in flag: 
                 self.trigger_ON = False
-                print("Trigger Stoped: ", self.trigger_ON)
 
                 #Create a new folder using current timestamp
                 folder_name = datetime.now().strftime("capture_%Y-%m-%d_%H-%M-%S")
@@ -150,10 +143,12 @@ class Oscilloscope():
                     with open(csv_filename, mode='w', newline='') as f:
                         writer = csv.writer(f)
                         writer.writerow(["Time (s)", "Voltage (V)"])
-                        writer.writerows(zip(self.times, self.voltages))
-                    
 
-                        print(f"✅ Waveform saved to: {f'channel{channel}.csv'}")
+                        for t, v in zip(self.times, self.voltages):
+                            writer.writerow([f"{t:.6f}", f"{v:.6f}"])
+
+                        #writer.writerows(zip(self.times, self.voltages))
+                    
                 self.screenshot(folder_path)
                     
                 self.set_trigger(volts_div, time_div, channel_list)
